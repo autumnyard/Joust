@@ -6,7 +6,7 @@ namespace AutumnYard.Joust
 {
     public sealed class Joust
     {
-        public struct Result
+        public struct Score
         {
             public readonly int PointA;
             public readonly int PointB;
@@ -17,11 +17,24 @@ namespace AutumnYard.Joust
                 return $" ({PointA}, {PointB}) A:{HasInitiativeA}";
             }
 
-            public Result(int pointA, int pointB, bool hasInitiativeA)
+            public Score(int pointA, int pointB, bool hasInitiativeA)
             {
                 PointA = pointA;
                 PointB = pointB;
                 HasInitiativeA = hasInitiativeA;
+            }
+        }
+        public struct Result
+        {
+            public readonly int PointsToInitiate;
+            public readonly int PointsToSecond;
+            public readonly bool ChangeInitiative;
+
+            public Result(int pointsToInitiate, int pointsToSecond, bool changeInitiative)
+            {
+                PointsToInitiate = pointsToInitiate;
+                PointsToSecond = pointsToSecond;
+                ChangeInitiative = changeInitiative;
             }
         }
 
@@ -37,7 +50,7 @@ namespace AutumnYard.Joust
 
         // Game state
         private int _currentRound;
-        private Result[,] _results = new Result[Rounds, Bouts];
+        private Score[,] _results = new Score[Rounds, Bouts];
 
         public Piece[,] Board => _board;
         public int[] Points => _points;
@@ -81,70 +94,34 @@ namespace AutumnYard.Joust
         {
             if (!IsRoundCorrect()) return;
 
-            // Empieza: 0,0,B
-            Debug.Log($"Round #{_currentRound + 1} start!");
-            Print_GameState();
+            Print_StartRound();
 
-            _currentBout = 0;
-
-            // Round 1
-            (int PointsToInitiate, int PointsToSecond, bool ChangeInitiative) result;
-            result = _initiativePlayerA ?
-                CheckPair(_board[0, _currentBout], _board[1, _currentBout])
-                : CheckPair(_board[1, _currentBout], _board[0, _currentBout]);
-
-            _results[_currentRound, _currentBout] = _initiativePlayerA ?
-                new Result(result.PointsToInitiate, result.PointsToSecond, result.ChangeInitiative)
-                : new Result(result.PointsToSecond, result.PointsToInitiate, !result.ChangeInitiative);
-
-            Print_Result();
-
-            _points[0] += _results[_currentRound, _currentBout].PointA;
-            _points[1] += _results[_currentRound, _currentBout].PointB;
-            _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
-            // Deberia quedar: 0,1,A
-
-            Print_GameState();
-
-            _currentBout++;
-
-            // Round 2
-            result = _initiativePlayerA ?
-                CheckPair(_board[0, _currentBout], _board[1, _currentBout])
-                : CheckPair(_board[1, _currentBout], _board[0, _currentBout]);
-
-            _results[_currentRound, _currentBout] = _initiativePlayerA ?
-                new Result(result.PointsToInitiate, result.PointsToSecond, result.ChangeInitiative)
-                : new Result(result.PointsToSecond, result.PointsToInitiate, !result.ChangeInitiative);
-
-            //Debug.Log($"  - Result 2: Had A the initiative? {_initiativePlayerA}, let's see: {result2}");
-            Print_Result();
-            _points[0] += _results[_currentRound, _currentBout].PointA;
-            _points[1] += _results[_currentRound, _currentBout].PointB;
-            _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
-            // Deberia quedar: 2,1,A
-            Print_GameState();
-
-            _currentBout++;
-
-            // Round 3
-            result = _initiativePlayerA ?
-                CheckPair(_board[0, _currentBout], _board[1, _currentBout])
-                : CheckPair(_board[1, _currentBout], _board[0, _currentBout]);
-
-            _results[_currentRound, _currentBout] = _initiativePlayerA ?
-                new Result(result.PointsToInitiate, result.PointsToSecond, result.ChangeInitiative)
-                : new Result(result.PointsToSecond, result.PointsToInitiate, !result.ChangeInitiative);
-
-            //Debug.Log($"  - Result 3: Had A the initiative? {_initiativePlayerA}, let's see: {result3}");
-            Print_Result();
-            _points[0] += _results[_currentRound, _currentBout].PointA;
-            _points[1] += _results[_currentRound, _currentBout].PointB;
-            _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
-            // Deberia quedar: 3,1,B
-            Print_GameState();
+            for (_currentBout = 0; _currentBout < Bouts; _currentBout++)
+            {
+                CalculateBout();
+                SetResult();
+            }
 
             NextRound();
+
+            void CalculateBout()
+            {
+               Result result = _initiativePlayerA ?
+                    CheckPair(_board[0, _currentBout], _board[1, _currentBout])
+                    : CheckPair(_board[1, _currentBout], _board[0, _currentBout]);
+
+                _results[_currentRound, _currentBout] = _initiativePlayerA ?
+                    new Score(result.PointsToInitiate, result.PointsToSecond, result.ChangeInitiative)
+                    : new Score(result.PointsToSecond, result.PointsToInitiate, result.ChangeInitiative);
+            }
+            void SetResult()
+            {
+                //Print_Result();
+                _points[0] += _results[_currentRound, _currentBout].PointA;
+                _points[1] += _results[_currentRound, _currentBout].PointB;
+                _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
+                Print_GameState();
+            }
         }
         public void NextRound()
         {
@@ -169,21 +146,21 @@ namespace AutumnYard.Joust
         }
 
         // points iniciative, points receiver, change initiative?
-        private (int PointsToInitiate, int PointsToSecond, bool ChangeInitiative) CheckPair(Piece initiative, Piece receiver)
+        private Result CheckPair(Piece initiative, Piece receiver)
         {
             switch ((initiative, receiver))
             {
-                case (Piece.Attack, Piece.Attack): return (1, 1, true);
-                case (Piece.Attack, Piece.Parry): return (0, 2, true);
-                case (Piece.Attack, Piece.Defense): return (0, 1, false);
+                case (Piece.Attack, Piece.Attack): return new Result(1, 1, true);
+                case (Piece.Attack, Piece.Parry): return new Result(0, 2, true);
+                case (Piece.Attack, Piece.Defense): return new Result(0, 1, false);
 
-                case (Piece.Parry, Piece.Attack): return (2, 0, false);
-                case (Piece.Parry, Piece.Parry): return (0, 0, false);
-                case (Piece.Parry, Piece.Defense): return (0, 0, true);
+                case (Piece.Parry, Piece.Attack): return new Result(2, 0, false);
+                case (Piece.Parry, Piece.Parry): return new Result(0, 0, false);
+                case (Piece.Parry, Piece.Defense): return new Result(0, 0, true);
 
-                case (Piece.Defense, Piece.Attack): return (1, 0, true);
-                case (Piece.Defense, Piece.Parry): return (0, 0, false);
-                case (Piece.Defense, Piece.Defense): return (0, 0, true);
+                case (Piece.Defense, Piece.Attack): return new Result(1, 0, true);
+                case (Piece.Defense, Piece.Parry): return new Result(0, 0, false);
+                case (Piece.Defense, Piece.Defense): return new Result(0, 0, true);
                 default:
                     break;
             }
@@ -210,13 +187,18 @@ namespace AutumnYard.Joust
 
             Debug.Log(sb.ToString());
         }
+        public void Print_StartRound()
+        {
+            Debug.Log($"+ Round #{_currentRound} start!");
+            Debug.Log($"  - Initial State: ({_points[0]}, {_points[1]}) A:{_initiativePlayerA}");
+        }
         public void Print_Result()
         {
-            Debug.Log($"  #{_currentRound}-{_currentBout}: Result {_results[_currentRound, _currentBout]}");
+            Debug.Log($"   = #{_currentRound}-{_currentBout}: Result {_results[_currentRound, _currentBout]}");
         }
         public void Print_GameState()
         {
-            Debug.Log($"  #{_currentRound}-{_currentBout}: State:  ({_points[0]}, {_points[1]}) A:{_initiativePlayerA}");
+            Debug.Log($"  - #{_currentRound}-{_currentBout}: State:  ({_points[0]}, {_points[1]}) A:{_initiativePlayerA}");
         }
     }
 }

@@ -11,25 +11,35 @@ namespace AutumnYard.Joust.Tests
         [Test]
         public void ExampleGame1()
         {
-            // Use the Assert class to test conditions
             var game = new Joust();
-            game.Print();
 
+            // Empieza: 0,0,B
             game.SetRound(Player.A, 0, Piece.Attack);
-            game.SetRound(Player.A, 1, Piece.Parry);
-            game.SetRound(Player.A, 2, Piece.Defense);
             game.SetRound(Player.B, 0, Piece.Defense);
+            // Deberia quedar: 0,1,A
+            game.SetRound(Player.A, 1, Piece.Parry);
             game.SetRound(Player.B, 1, Piece.Attack);
+            // Deberia quedar: 2,1,A
+            game.SetRound(Player.A, 2, Piece.Defense);
             game.SetRound(Player.B, 2, Piece.Attack);
-            game.Print();
+            // Deberia quedar: 3,1,B
 
             game.PlayRound();
-            game.Print();
+
+            Assert.AreEqual(new int[] { 3, 1 }, game.Points);
+            Assert.AreEqual(false, game.InitiativePlayerA);
+        }
+        [Test]
+        public void ExampleGame1_SetWithString()
+        {
+            // Use the Assert class to test conditions
+            var game = new Joust();
+            game.SetBout("APDDAA");
+            game.PlayRound();
 
             int[] expected = new int[2] { 3, 1 };
-            Assert.AreEqual(game.Points, expected);
-            Assert.AreEqual(game.InitiativePlayerA, false);
-
+            Assert.AreEqual(expected, game.Points);
+            Assert.AreEqual(false, game.InitiativePlayerA);
         }
 
     }
