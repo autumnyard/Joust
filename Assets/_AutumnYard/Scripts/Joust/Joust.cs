@@ -1,6 +1,6 @@
-﻿using UnityEngine;
+﻿using System;
 using System.Text;
-using System;
+using UnityEngine;
 
 namespace AutumnYard.Joust
 {
@@ -8,9 +8,21 @@ namespace AutumnYard.Joust
     {
         public struct Result
         {
-            public int PointA { private set; get; }
-            public int PointB { private set; get; }
-            public bool hasInitiativeA { private set; get; }
+            public readonly int PointA;
+            public readonly int PointB;
+            public readonly bool HasInitiativeA;
+
+            public override string ToString()
+            {
+                return $" ({PointA}, {PointB}) A:{HasInitiativeA}";
+            }
+
+            public Result(int pointA, int pointB, bool hasInitiativeA)
+            {
+                PointA = pointA;
+                PointB = pointB;
+                HasInitiativeA = hasInitiativeA;
+            }
         }
 
         public const int Players = 2;
@@ -25,7 +37,7 @@ namespace AutumnYard.Joust
 
         // Game state
         private int _currentRound;
-        private Result[,] results = new Result[Rounds, Bouts];
+        private Result[,] _results = new Result[Rounds, Bouts];
 
         public Piece[,] Board => _board;
         public int[] Points => _points;
@@ -35,6 +47,26 @@ namespace AutumnYard.Joust
 
 
         public void SetRound(Player player, int index, Piece to) => _board[(int)player, index] = to;
+        public void SetBout(string Strong)
+        {
+            _board[0, 0] = Parse(Strong[0]);
+            _board[0, 1] = Parse(Strong[1]);
+            _board[0, 2] = Parse(Strong[2]);
+            _board[1, 0] = Parse(Strong[3]);
+            _board[1, 1] = Parse(Strong[4]);
+            _board[1, 2] = Parse(Strong[5]);
+
+            Piece Parse(char Char)
+            {
+                switch (Char)
+                {
+                    case 'A': return Piece.Attack;
+                    case 'P': return Piece.Parry;
+                    case 'D': return Piece.Defense;
+                    default: return Piece.Empty;
+                }
+            }
+        }
 
         private bool IsRoundCorrect()
         {
@@ -50,35 +82,69 @@ namespace AutumnYard.Joust
             if (!IsRoundCorrect()) return;
 
             // Empieza: 0,0,B
-            Debug.Log($"Round #x start:");
-            PrintOnlyGameState();
+            Debug.Log($"Round #{_currentRound + 1} start!");
+            Print_GameState();
+
+            _currentBout = 0;
 
             // Round 1
-            var result1 = _initiativePlayerA ? CheckPair(_board[0, 0], _board[1, 0]) : CheckPair(_board[1, 0], _board[0, 0]);
-            Debug.Log($"  - Result 1: Had A the initiative? {_initiativePlayerA}, let's see: {result1}");
-            _points[0] += _initiativePlayerA ? result1.PointsToInitiate : result1.PointsToSecond;
-            _points[1] += _initiativePlayerA ? result1.PointsToSecond : result1.PointsToInitiate;
-            if (result1.ChangeInitiative) _initiativePlayerA = !_initiativePlayerA;
+            (int PointsToInitiate, int PointsToSecond, bool ChangeInitiative) result;
+            result = _initiativePlayerA ?
+                CheckPair(_board[0, _currentBout], _board[1, _currentBout])
+                : CheckPair(_board[1, _currentBout], _board[0, _currentBout]);
+
+            _results[_currentRound, _currentBout] = _initiativePlayerA ?
+                new Result(result.PointsToInitiate, result.PointsToSecond, result.ChangeInitiative)
+                : new Result(result.PointsToSecond, result.PointsToInitiate, !result.ChangeInitiative);
+
+            Print_Result();
+
+            _points[0] += _results[_currentRound, _currentBout].PointA;
+            _points[1] += _results[_currentRound, _currentBout].PointB;
+            _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
             // Deberia quedar: 0,1,A
-            PrintOnlyGameState();
+
+            Print_GameState();
+
+            _currentBout++;
 
             // Round 2
-            var result2 = _initiativePlayerA ? CheckPair(_board[0, 1], _board[1, 1]) : CheckPair(_board[1, 1], _board[0, 1]);
-            Debug.Log($"  - Result 2: Had A the initiative? {_initiativePlayerA}, let's see: {result2}");
-            _points[0] += _initiativePlayerA ? result2.PointsToInitiate : result2.PointsToSecond;
-            _points[1] += _initiativePlayerA ? result2.PointsToSecond : result2.PointsToInitiate;
-            if (result2.ChangeInitiative) _initiativePlayerA = !_initiativePlayerA;
+            result = _initiativePlayerA ?
+                CheckPair(_board[0, _currentBout], _board[1, _currentBout])
+                : CheckPair(_board[1, _currentBout], _board[0, _currentBout]);
+
+            _results[_currentRound, _currentBout] = _initiativePlayerA ?
+                new Result(result.PointsToInitiate, result.PointsToSecond, result.ChangeInitiative)
+                : new Result(result.PointsToSecond, result.PointsToInitiate, !result.ChangeInitiative);
+
+            //Debug.Log($"  - Result 2: Had A the initiative? {_initiativePlayerA}, let's see: {result2}");
+            Print_Result();
+            _points[0] += _results[_currentRound, _currentBout].PointA;
+            _points[1] += _results[_currentRound, _currentBout].PointB;
+            _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
             // Deberia quedar: 2,1,A
-            PrintOnlyGameState();
+            Print_GameState();
+
+            _currentBout++;
 
             // Round 3
-            var result3 = _initiativePlayerA ? CheckPair(_board[0, 2], _board[1, 2]) : CheckPair(_board[1, 2], _board[0, 2]);
-            Debug.Log($"  - Result 3: Had A the initiative? {_initiativePlayerA}, let's see: {result3}");
-            _points[0] += _initiativePlayerA ? result3.PointsToInitiate : result3.PointsToSecond;
-            _points[1] += _initiativePlayerA ? result3.PointsToSecond : result3.PointsToInitiate;
-            if (result3.ChangeInitiative) _initiativePlayerA = !_initiativePlayerA;
+            result = _initiativePlayerA ?
+                CheckPair(_board[0, _currentBout], _board[1, _currentBout])
+                : CheckPair(_board[1, _currentBout], _board[0, _currentBout]);
+
+            _results[_currentRound, _currentBout] = _initiativePlayerA ?
+                new Result(result.PointsToInitiate, result.PointsToSecond, result.ChangeInitiative)
+                : new Result(result.PointsToSecond, result.PointsToInitiate, !result.ChangeInitiative);
+
+            //Debug.Log($"  - Result 3: Had A the initiative? {_initiativePlayerA}, let's see: {result3}");
+            Print_Result();
+            _points[0] += _results[_currentRound, _currentBout].PointA;
+            _points[1] += _results[_currentRound, _currentBout].PointB;
+            _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
             // Deberia quedar: 3,1,B
-            PrintOnlyGameState();
+            Print_GameState();
+
+            NextRound();
         }
         public void NextRound()
         {
@@ -144,9 +210,13 @@ namespace AutumnYard.Joust
 
             Debug.Log(sb.ToString());
         }
-        public void PrintOnlyGameState()
+        public void Print_Result()
         {
-            Debug.Log($"  Points ({_points[0]}, {_points[1]}) - Has player A the Initiative? {_initiativePlayerA}");
+            Debug.Log($"  #{_currentRound}-{_currentBout}: Result {_results[_currentRound, _currentBout]}");
+        }
+        public void Print_GameState()
+        {
+            Debug.Log($"  #{_currentRound}-{_currentBout}: State:  ({_points[0]}, {_points[1]}) A:{_initiativePlayerA}");
         }
     }
 }
