@@ -6,7 +6,7 @@ namespace AutumnYard.Joust
 {
     public sealed class Joust
     {
-        public enum Phase { Locked, Playing }
+        public enum Phase { Locked, Playing, FinishedRound, Finished }
         public struct Score
         {
             public readonly int PointA;
@@ -63,6 +63,7 @@ namespace AutumnYard.Joust
         private int _currentRound;
         private Score[,] _results = new Score[Rounds, Bouts];
 
+        public Phase CurrentPhase => _currentPhase;
         public Piece[,] Board => _board;
         public int[] Points => _points;
         public bool InitiativePlayerA => _initiativePlayerA;
@@ -83,6 +84,7 @@ namespace AutumnYard.Joust
             _results = new Score[Rounds, Bouts];
         }
 
+        // Step 1:
         public void SetRound(Player player, int index, Piece to)
         {
             if (_currentPhase != Phase.Locked) return;
@@ -111,8 +113,12 @@ namespace AutumnYard.Joust
                 }
             }
         }
-        public void ChangeModeToPlay()
+
+        // Step 2:
+        public void TryChangeModeToPlay()
         {
+            if (_currentPhase != Phase.Locked) return;
+
             foreach (var item in _board)
             {
                 if (item == Piece.Empty) return;
@@ -120,6 +126,8 @@ namespace AutumnYard.Joust
 
             _currentPhase = Phase.Playing;
         }
+
+        // Step 3: Play the bouts until finished
         public void PlayBout()
         {
             if (_currentPhase != Phase.Playing) return;
@@ -127,41 +135,35 @@ namespace AutumnYard.Joust
             CalculateBout();
             SetResult();
             onFinishBout?.Invoke();
-        }
 
-        public void Test_PlayAllRound()
-        {
-            if (_currentPhase != Phase.Playing) return;
-
-            for (_currentBout = 0; _currentBout < Bouts; _currentBout++)
+            _currentBout++;
+            if (_currentBout >= Bouts)
             {
-                CalculateBout();
-                SetResult();
-                onFinishBout?.Invoke();
+                _currentPhase = Phase.FinishedRound;
             }
-
-            NextRound();
-
         }
-        private void NextRound()
+
+        // Step 4: Finish this round and begin the next one, unless game is finished
+        public void FinishRound()
         {
+            if (_currentPhase != Phase.FinishedRound) return;
+
             onFinishRound?.Invoke();
-
-            for (int i = 0; i < _board.GetLength(0); i++)
-            {
-                for (int j = 0; j < _board.GetLength(1); j++)
-                {
-                    _board[i, j] = Piece.Empty;
-                }
-            }
-
+            _board = new Piece[Players, Bouts];
             _currentRound++;
 
-            if (_currentRound == 5)
+            if (_currentRound >= Rounds)
             {
-                onFinishGame?.Invoke();
+                FinishGame();
             }
         }
+
+        public void FinishGame()
+        {
+            _currentPhase = Phase.Finished;
+            onFinishGame?.Invoke();
+        }
+
 
         #region Game Logic
 
@@ -175,7 +177,6 @@ namespace AutumnYard.Joust
         }
         private void SetResult()
         {
-            //Print_Result();
             _points[0] += _results[_currentRound, _currentBout].PointA;
             _points[1] += _results[_currentRound, _currentBout].PointB;
             _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
@@ -202,6 +203,7 @@ namespace AutumnYard.Joust
 
             throw new System.ArgumentOutOfRangeException("Trying to CheckPair with wrong Piece value.");
         }
+        
         #endregion // Game Logic
 
         #region Printing
@@ -240,5 +242,6 @@ namespace AutumnYard.Joust
         }
 
         #endregion // Printing
+
     }
 }
