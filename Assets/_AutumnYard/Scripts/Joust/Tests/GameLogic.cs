@@ -24,7 +24,9 @@ namespace AutumnYard.Joust.Tests
             game.SetRound(Player.B, 2, Piece.Attack);
             // Deberia quedar: 3,1,B
 
-            game.PlayRound();
+            game.ChangeModeToPlay();
+
+            game.Test_PlayAllRound();
 
             Assert.AreEqual(new int[] { 3, 1 }, game.Points);
             Assert.AreEqual(false, game.InitiativePlayerA);
@@ -35,7 +37,8 @@ namespace AutumnYard.Joust.Tests
             // Use the Assert class to test conditions
             var game = new Joust();
             game.SetBout("APDDAA");
-            game.PlayRound();
+            game.ChangeModeToPlay();
+            game.Test_PlayAllRound();
 
             int[] expected = new int[2] { 3, 1 };
             Assert.AreEqual(expected, game.Points);

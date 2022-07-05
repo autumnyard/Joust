@@ -6,6 +6,7 @@ namespace AutumnYard.Joust
 {
     public sealed class Joust
     {
+        public enum Phase { Locked, Playing }
         public struct Score
         {
             public readonly int PointA;
@@ -17,11 +18,20 @@ namespace AutumnYard.Joust
                 return $" ({PointA}, {PointB}) A:{HasInitiativeA}";
             }
 
-            public Score(int pointA, int pointB, bool hasInitiativeA)
+            public Score(Result result, bool initiativeA)
             {
-                PointA = pointA;
-                PointB = pointB;
-                HasInitiativeA = hasInitiativeA;
+                if (initiativeA)
+                {
+                    PointA = result.PointsToInitiate;
+                    PointB = result.PointsToSecond;
+                    HasInitiativeA = result.ChangeInitiative;
+                }
+                else
+                {
+                    PointA = result.PointsToSecond;
+                    PointB = result.PointsToInitiate;
+                    HasInitiativeA = result.ChangeInitiative;
+                }
             }
         }
         public struct Result
@@ -49,6 +59,7 @@ namespace AutumnYard.Joust
         private int _currentBout;
 
         // Game state
+        private Phase _currentPhase;
         private int _currentRound;
         private Score[,] _results = new Score[Rounds, Bouts];
 
@@ -56,12 +67,32 @@ namespace AutumnYard.Joust
         public int[] Points => _points;
         public bool InitiativePlayerA => _initiativePlayerA;
 
+        public event Action onFinishBout;
+        public event Action onFinishRound;
         public event Action onFinishGame;
 
+        public void Clear()
+        {
+            _board = new Piece[Players, Bouts];
+            _points = new int[Players];
+            _initiativePlayerA = true;
+            _currentBout = 0;
 
-        public void SetRound(Player player, int index, Piece to) => _board[(int)player, index] = to;
+            _currentPhase = Phase.Locked;
+            _currentRound = 0;
+            _results = new Score[Rounds, Bouts];
+        }
+
+        public void SetRound(Player player, int index, Piece to)
+        {
+            if (_currentPhase != Phase.Locked) return;
+
+            _board[(int)player, index] = to;
+        }
         public void SetBout(string Strong)
         {
+            if (_currentPhase != Phase.Locked) return;
+
             _board[0, 0] = Parse(Strong[0]);
             _board[0, 1] = Parse(Strong[1]);
             _board[0, 2] = Parse(Strong[2]);
@@ -80,51 +111,42 @@ namespace AutumnYard.Joust
                 }
             }
         }
-
-        private bool IsRoundCorrect()
+        public void ChangeModeToPlay()
         {
             foreach (var item in _board)
             {
-                if (item == Piece.Empty) return false;
+                if (item == Piece.Empty) return;
             }
-            return true;
+
+            _currentPhase = Phase.Playing;
+        }
+        public void PlayBout()
+        {
+            if (_currentPhase != Phase.Playing) return;
+
+            CalculateBout();
+            SetResult();
+            onFinishBout?.Invoke();
         }
 
-        public void PlayRound()
+        public void Test_PlayAllRound()
         {
-            if (!IsRoundCorrect()) return;
-
-            Print_StartRound();
+            if (_currentPhase != Phase.Playing) return;
 
             for (_currentBout = 0; _currentBout < Bouts; _currentBout++)
             {
                 CalculateBout();
                 SetResult();
+                onFinishBout?.Invoke();
             }
 
             NextRound();
 
-            void CalculateBout()
-            {
-               Result result = _initiativePlayerA ?
-                    CheckPair(_board[0, _currentBout], _board[1, _currentBout])
-                    : CheckPair(_board[1, _currentBout], _board[0, _currentBout]);
-
-                _results[_currentRound, _currentBout] = _initiativePlayerA ?
-                    new Score(result.PointsToInitiate, result.PointsToSecond, result.ChangeInitiative)
-                    : new Score(result.PointsToSecond, result.PointsToInitiate, result.ChangeInitiative);
-            }
-            void SetResult()
-            {
-                //Print_Result();
-                _points[0] += _results[_currentRound, _currentBout].PointA;
-                _points[1] += _results[_currentRound, _currentBout].PointB;
-                _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
-                Print_GameState();
-            }
         }
-        public void NextRound()
+        private void NextRound()
         {
+            onFinishRound?.Invoke();
+
             for (int i = 0; i < _board.GetLength(0); i++)
             {
                 for (int j = 0; j < _board.GetLength(1); j++)
@@ -137,15 +159,28 @@ namespace AutumnYard.Joust
 
             if (_currentRound == 5)
             {
-                FinishGame();
+                onFinishGame?.Invoke();
             }
         }
-        private void FinishGame()
-        {
-            onFinishGame?.Invoke();
-        }
 
-        // points iniciative, points receiver, change initiative?
+        #region Game Logic
+
+        private void CalculateBout()
+        {
+            Result result = _initiativePlayerA ?
+                 CheckPair(_board[(int)Player.A, _currentBout], _board[(int)Player.B, _currentBout])
+                 : CheckPair(_board[(int)Player.B, _currentBout], _board[(int)Player.A, _currentBout]);
+
+            _results[_currentRound, _currentBout] = new Score(result, _initiativePlayerA);
+        }
+        private void SetResult()
+        {
+            //Print_Result();
+            _points[0] += _results[_currentRound, _currentBout].PointA;
+            _points[1] += _results[_currentRound, _currentBout].PointB;
+            _initiativePlayerA = _results[_currentRound, _currentBout].HasInitiativeA;
+            Print_GameState();
+        }
         private Result CheckPair(Piece initiative, Piece receiver)
         {
             switch ((initiative, receiver))
@@ -167,6 +202,9 @@ namespace AutumnYard.Joust
 
             throw new System.ArgumentOutOfRangeException("Trying to CheckPair with wrong Piece value.");
         }
+        #endregion // Game Logic
+
+        #region Printing
 
         public void Print()
         {
@@ -200,5 +238,7 @@ namespace AutumnYard.Joust
         {
             Debug.Log($"  - #{_currentRound}-{_currentBout}: State:  ({_points[0]}, {_points[1]}) A:{_initiativePlayerA}");
         }
+
+        #endregion // Printing
     }
 }

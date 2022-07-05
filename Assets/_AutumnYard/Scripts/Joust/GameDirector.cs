@@ -1,5 +1,6 @@
 using UnityEngine;
 using NaughtyAttributes;
+using System;
 
 namespace AutumnYard.Joust
 {
@@ -18,11 +19,17 @@ namespace AutumnYard.Joust
         public void NewGame()
         {
             _game = new Joust();
+            _game.onFinishBout += () => Debug.Log("Finished Bout");
+            _game.onFinishRound += () => Debug.Log("Finished Round");
+            _game.onFinishGame += () => Debug.Log("Finished Game");
 
             display.Display(in _game);
             _game.Print();
         }
 
+        private void HandleFinishBout() => Debug.Log("Finished Bout");
+        private void HandleFinishRound() => Debug.Log("Finished Round");
+        private void HandleFinishGame() => Debug.Log("Finished Game");
 
         [Button(enabledMode: EButtonEnableMode.Playmode)]
         [ContextMenu("Test: Set Game 1")]
@@ -43,7 +50,7 @@ namespace AutumnYard.Joust
         [ContextMenu("Test: Play Game 1")]
         public void Test_Game1Play()
         {
-            _game.PlayRound();
+            _game.Test_PlayAllRound();
 
             display.Display(in _game);
             _game.Print();
